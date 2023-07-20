@@ -1,0 +1,141 @@
+---
+title: FIP-2
+description: Restrict block header from having timestamp earlier than previous block
+authors: ygao76
+discussion: https://discourse.ironfish.network/t/proposal-restrict-block-from-having-timestamp-earlier-than-previous-block/50
+status: Idea
+category: Core
+created: 2023-7-19
+---
+
+## Abstract
+It’s a known vulnerability that Iron Fish allow blocks with timestamps that are earlier than timestamps from previous block. Miners are incentivized to exploit it by manipulating the block timestamps to consistently gain more mining rewards. I propose to update the block header verification in consensus layer to only allow blocks with timestamps that are greater than their previous block timestamp
+
+## Motivation
+
+There are speculation among miners that negative block mine time can potentially manipulate the mining difficulty. People believe that the ability creating a block with negative mine time gives these miners an edge in a “tie-breaking” scenario since making the timestamp low enough might increase the block’s mining difficulty. Miners are incentivized to set the timestamp as early as possible to gain the system with possible more mining rewards.
+
+This negative mine time in the block header causes confusing for users. For example, in Iron Fish block explorer, It will cause negative duration for ‘Mined In’ column in The Iron Fish block explorer. The same issue exists for the Oreoscan. In Iron Fish CLI, it also use the block timestamp to display the time a transaction occurred in `wallet:transactions`, this led to less reliable creation time for transaction.
+
+## Specification
+
+**Block header timestamp**
+Timestamp according to the miner who mined the block.  The timestamp is in millisecond. Miners must verify that it is an appropriate distance to the previous blocks timestamp.
+
+**Block mine time**
+This is calculated from the interval of current block timestamp from the previous block timestamp. When the timestamp of the current block header is earlier than the timestamp of previous block, it will result in negative block mine time.
+
+I propose following two changes to address the negative block mine time problem
+
+### Change block header verification in Concensus
+
+Only allow block header with a timestamp greater than the timestamp of the previous block. The block header verification in the consensus will conosider a block header  is valid only if `block_header(n).timestamp > block_header(n-1).timestamp`.
+
+### Change new block template in Mining Manager 
+When mining manager creates a new block template, the timestamp for the new block will be adjusted to comply with the new rule. For the official mining manager, it will use both the previous block timestamp and current timestamp when calculating the timestamp in the new block template. This way also allows us to avoid the potential issue caused by clocks are not synced across servers. This change will not be protected by the block sequence condition since this change only affects new block.
+
+For mining pools using non official mining manager, they will have to change their logic of setting the timestamp in the new block template to comply with the new rule.
+
+
+## Backwards Compatibility 
+
+The proposed concensus change will support backward compatibility. For all the existing blocks with negative timestamp, they are still valid and not affected by the new rule. To achieve backward compatibility, the new rule will be enforced based on the block sequence. This block sequence that turns on the new rule will be decided in a hard fork upgrade proposal. 
+
+## Reference Implementation
+
+### Consensus
+
+- Block header verify the block timestamp > the timestamp of the previous block.
+
+[Current](https://github.com/iron-fish/ironfish/blob/master/ironfish/src/consensus/verifier.ts#L203) 
+
+```
+if (
+      current.timestamp.getTime() <
+      previousHeader.timestamp.getTime() -
+        this.chain.consensus.parameters.allowedBlockFutureSeconds * 1000
+    ) {
+      return { valid: false, reason: VerificationResultReason.BLOCK_TOO_OLD }
+    }
+```
+
+New
+
+```
+if (
+      current.timestamp.getTime() <=
+      previousHeader.timestamp.getTime() 
+    ) {
+      return { valid: false, reason: VerificationResultReason.BLOCK_TOO_OLD }
+    }
+```
+
+- Enforce the new rule by checking the block sequence to achieve backward compatible
+
+Define the block sequence at which the new rule will start to apply
+
+```
+export type ConsensusParameters = {
+   // new parameter
+   /**
+   * Before upgrade we had negative block mine time in block headers. At this 
+   * block we do a check to disallow negative block mine time.
+   */
+   DISALLOW_NEGATIVE_BLOCK_MINE_TIMES: number
+}
+```
+
+Condition to apply the new rule
+
+```
+if (
+      this.chain.consensus.isActive(this.chain.consensus.DISALLOW_NEGATIVE_BLOCK_MINE_TIMES, block.header.sequence)
+    ) {
+		// apply the new rule
+}else{
+    // apply the existing rule
+}
+```
+
+### Mining Manager
+
+- When mining manager creates a new block template, the timestamp for the new block will be adjusted to comply with the new rule
+
+[Current](https://github.com/iron-fish/ironfish/blob/master/ironfish/src/blockchain/blockchain.ts#L978) 
+
+```
+const header = new BlockHeader(
+        previousSequence + 1,
+        previousBlockHash,
+        noteCommitment,
+        transactionCommitment(transactions),
+        target,
+        BigInt(0),
+        new Date(Date.now()),
+        graffiti,
+        noteSize,
+        BigInt(0),
+      )
+```
+
+New
+
+```
+const timestamp = new Date(Date.now())
+const header = new BlockHeader(
+        previousSequence + 1,
+        previousBlockHash,
+        noteCommitment,
+        transactionCommitment(transactions),
+        target,
+        BigInt(0),
+        Math.max(timestamp, previous.timestamp + 1 (milliesecond)),
+        graffiti,
+        noteSize,
+        BigInt(0),
+      )
+```
+
+## Copyright
+
+Copyright and related rights waived via [CC0](https://creativecommons.org/share-your-work/public-domain/cc0/).
