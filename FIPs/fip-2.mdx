@@ -27,7 +27,7 @@ This is calculated from the interval of current block timestamp from the previou
 
 I propose following two changes to address the negative block mine time problem
 
-### Change block header verification in Concensus
+### Change block header verification in Consensus
 
 Only allow block header with a timestamp greater than the timestamp of the previous block. The block header verification in the consensus will conosider a block header  is valid only if `block_header(n).timestamp > block_header(n-1).timestamp`.
 
@@ -39,7 +39,7 @@ For mining pools using non official mining manager, they will have to change the
 
 ## Backwards Compatibility 
 
-The proposed concensus change will support backward compatibility. For all the existing blocks with negative timestamp, they are still valid and not affected by the new rule. To achieve backward compatibility, the new rule will be enforced based on the block sequence. This block sequence that turns on the new rule will be decided in a hard fork upgrade proposal. 
+The proposed consensus change will support backward compatibility. For all the existing blocks with negative timestamp, they are still valid and not affected by the new rule. To achieve backward compatibility, the new rule will be enforced based on the block sequence. This block sequence that turns on the new rule will be decided in a hard fork upgrade proposal. 
 
 ## Reference Implementation
 
