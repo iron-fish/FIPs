@@ -1,5 +1,5 @@
 ---
-title: FIP-2 Negative Block Mine Time
+title: FIP-2 Enforce Sequential Block Time
 description: Restrict block header from having timestamp earlier than previous block.
 authors: ygao76
 discussion: https://discourse.ironfish.network/t/proposal-restrict-block-from-having-timestamp-earlier-than-previous-block/50
@@ -9,11 +9,10 @@ created: 2023-7-19
 ---
 
 ## Abstract
-It’s a known vulnerability that Iron Fish allows blocks with timestamps that are earlier than timestamps from previous blocks. Miners are incentivized to exploit it by manipulating the block timestamps to consistently gain more mining rewards. I propose to update the block header verification in consensus layer to only allow blocks with timestamps that are greater than their previous block timestamp
-
+To handle the common problems of clock unsynchronization among the servers, current Iron Fish's consensus allows blocks with timestamps that are earlier than timestamps from previous blocks. Miners are incentivized to exploit it by manipulating the block timestamps to consistently gain more mining rewards. I propose to update the block header verification in the consensus layer to enforce sequential block timestamps in the same order as the block sequences.
 ## Motivation
 
-There is speculation among miners that negative block mine time can potentially manipulate the mining difficulty. People believe that the ability to creat a block with negative mine time gives these miners an edge in a “tie-breaking” scenario since making the timestamp low enough might increase the block’s mining difficulty. Miners are incentivized to set the timestamp as early as possible to gain the system with possible more mining rewards.
+Currently, Iron Fish’s consensus allows a 15 seconds grace period window when verifies the timestamp of a new block. The new block is considered valid if its timestamp falls between the timestamp of previous block minus the grace period and the timestamp of the moment when verification happens plus the grace period. This grace period is to handle the common problems of clock unsynchronization among the servers, for example clock drifting and clock skews. This design allows new block with timestamps that are earlier than timestamps from previous blocks, which leads to the possibility of negative block mine time. There is speculation among miners that negative block mine time can potentially manipulate the mining difficulty. People believe that the ability to creat a block with negative mine time gives these miners an edge in a “tie-breaking” scenario since making the timestamp low enough might increase the block’s mining difficulty. Miners are incentivized to set the timestamp as early as possible to gain the system with possible more mining rewards.
 
 This negative mine time in the block header causes confusion for users. For example, in Iron Fish block explorer, It will cause negative duration for the ‘Mined In’ column in The Iron Fish block explorer. The same issue exists for the Oreoscan. In Iron Fish CLI, it also uses the block timestamp to display the time a transaction occurred in `wallet:transactions`, this led to less reliable creation time for transactions.
 
@@ -78,10 +77,10 @@ Define the block sequence at which the new rule will start to apply
 export type ConsensusParameters = {
    // new parameter
    /**
-   * Before the upgrade we had negative block mine time in block headers. At this 
-   * block we do a check to disallow negative block mine time.
+   * Before upgrade we have block timestamp smaller than previous block. After this
+   * block we enforce the block timestamps in the sequential order as the block sequences.
    */
-   DISALLOW_NEGATIVE_BLOCK_MINE_TIMES: number
+   enforceSequentialBlockTime: number
 }
 ```
 
@@ -89,7 +88,7 @@ Condition to apply the new rule
 
 ```
 if (
-      this.chain.consensus.isActive(this.chain.consensus.DISALLOW_NEGATIVE_BLOCK_MINE_TIMES, block.header.sequence)
+      this.chain.consensus.isActive(this.chain.consensus.enforceSequentialBlockTime, block.header.sequence)
     ) {
 		// apply the new rule
 }else{
