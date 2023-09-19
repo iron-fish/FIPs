@@ -1,0 +1,94 @@
+---
+title: FIP-1 Allow asset owners to change owner key
+description: Allowing asset owners to change the owner key improves security and allows a best-practice of rotating the keys to minimize risk of leaking keys
+author: Mat Geist (@mat-if)
+discussion: https://discourse.ironfish.network/t/proposal-allow-asset-owners-to-change-owner-key/43
+status: Idea
+category: Core
+created: 2023-7-19
+---
+
+## Abstract
+
+Add a new, optional field to the Mint Description of Transactions called, `transferOwnershipTo` which will be a public address. When this is provided, all future mints must be created using the new key, and can no longer be created by the current key.
+
+Additionally, add a new field to the Mint Description called `owner` which contains the public address of the current owner of the asset. This is used for verifying that the mint is created using the correct owner at a consensus level.
+
+To support these changes, the transaction version will need to be incremented from V1 to V2 as these changes require breaking changes to the Mint Descriptionl
+
+## Motivation
+
+Iron Fish currently lacks the ability for asset owners to manage their assets in any way, besides minting tokens. Asset owners need to be able to rotate the key used to manage the token.
+
+## Specification
+
+The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in RFC 2119 and RFC 8174.
+
+### Definitions
+
+- Asset Creator: This is what is currently known as the asset owner. This is the public address of the key used to initially mint an asset. This MUST NOT change as it is used to derive the unique asset identifier.
+- Asset Owner: The current assigned owner of an asset. The current owner MAY transfer ownership via the mint description.
+- Freezing an asset: Make it impossible to mint any more value of an asset. Has no effect on the circulation or transfer of existing value of an asset.
+- `transferOwnershipTo`: New, optional public address field on `MintDescription` to transfer ownership from the existing key, to the key associated with the public address provided.
+
+This proposal introduces a new version of Transactions, v2. Transactions already contain a `version` field, and nodes verify that only v1 transactions are allowed.
+
+The changes to transactions will be the addition of 2 new fields on the MintDescription:
+1. `owner`: asset owners MUST provide the public address of the account used to create the mint.
+2. `transferOwnershipTo`: asset owners MAY provide the public address of the account they wish to transfer ownership permissions of this asset to. Transferring ownership in this way transfers **all** asset ownership permissions. The original owner retains no permissions once this is done.
+
+Asset ownership permissions are defined as:
+- The ability to mint more value of this specific asset
+- The ability to transfer ownership to another account
+
+This change requires nodes to use the `MintDescription` `owner` as a public input to the `MintDescription`'s zero-knowledge proof verification. Previously, the asset `creator` (then known as `owner`) field was used in this way.
+
+Additionally, nodes MUST store the current owner of assets in a data store. This can be accomplished by updating the owner of an asset in the data store whenever a valid `MintDescription` is added to the chain which contains a `transferOwnershipTo` public address. Nodes MUST verify that `MintDescription`s `owner` field is the same one as the current owner for that asset in the data store. A Transaction is invalid if it contains a `MintDescription` containing an `owner` that does not match the current owner as determined by the data store.
+
+The mint description network serialization format will be changing.
+A summary of a current (v1) mint description:
+```
+- proof (192 bytes)
+- asset creator's public address (32 bytes)
+- asset name (32 bytes)
+- asset metadata (96 bytes)
+- asset nonce (1 byte)
+- value to mint (8 bytes)
+- authorizing signature (64 bytes)
+```
+
+v2 mint description
+```
+- proof (192 bytes)
+- asset creator's public address (32 bytes)
+- asset name (32 bytes)
+- asset metadata (96 bytes)
+- asset nonce (1 byte)
+- value to mint (8 bytes)
+- **asset owner public address (32 bytes)** (new)
+- **boolean whether this mint contains an ownership transfer (1 byte)** (new)
+- **public address to transfer asset ownership to (32 bytes, optional)** (new)
+- authorizing signature (64 bytes)
+```
+
+## Rationale
+
+By having nodes verify the `owner` field is correct, nodes are able to quickly confirm whether a mint is being created by the proper owner. Without this check, anyone would be able to create a seemingly valid mint of any arbitrary asset. This is a cheap check, as it should be a simple lookup in a key value data store. Combined with using the `owner` as a public input for the proof validation, the network is able to securely confirm that mints are valid and being created only by the proper owner.
+
+The `owner` field being present on a `MintDescription` is not strictly required, as a node contains all the information needed to correctly verify mints without it. However, this introduces considerable code complexity, as it requires nodes to look up the owner from the data store for every mint to pass in as a public input during the proof verification step. Additionally, it complicates the data store requirements for tracking asset owner state in the event of a fork or other block rollback, which is a fairly common occurrence on a blockchain. By including the `owner` field, we reduce complexity and simplify implementation for the first proposed change requiring a hard-fork. Future proposals could optimize this as needed.
+
+By allowing asset owners to transfer ownership, they gain the ability to rotate their keys, which is good security hygiene. This approach serves as a relatively simple way to enable this security. It allows Iron Fish to provide this much needed utility, without a large, complex change. There are other potentially more robust approaches which would require larger changes, which are not ideal for the network currently in such early stages.
+
+## Backwards Compatibility 
+
+This proposal is a breaking change to Transactions, as it requires additional fields to be serialized on a `MintDescription`. This is accomplished by introducing a new version of a Transaction, v2. As part of rolling out this change, the current v1 Transactions continue to be valid until the determined block height. Once the blockchain reaches this block height, only v2 transactions are valid. Node implementations could prepare for this activation by creating v1 transactions until the chain is within, for example, 10 blocks of the activation sequence. At this point, they could begin creating v2 transactions, which would allow a relatively seamless upgrade without creating transactions that will be guaranteed to expire.
+
+## Security and Privacy Considerations
+
+Since the creator's public address was already public information, as all information on a mint description is, this does not require any changes to the proofs, trusted setup, or any privacy-related features of Iron Fish.
+
+A possible risk would be an implementation or user using the private key instead of the public address, which would effectively destroy that asset, since everyone watching the blockchain would now be able to create valid mints using this leaked key.
+
+## Copyright
+
+Copyright and related rights waived via [CC0](https://creativecommons.org/share-your-work/public-domain/cc0/).
