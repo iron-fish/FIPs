@@ -249,6 +249,7 @@ backwards compatible with previous versions of the node. Individual account bala
 by the change. **[TODO: Add FIP for Hardfork\]**
 
 ## Security and Privacy Considerations
+#### Cryptographic Security Concerns
 The main security concerns that were considered in this proposal are
 
 - The new hashing algorithm could be vulnerable to known cryptographic attacks like pre-image or collision attacks.
@@ -262,8 +263,24 @@ official audit of the cryptographic security of the new algorithm from security 
 Supplementing this official audit many community members with a vested stake in the network have reviewed the 
 FishHash code which is [open source](https://github.com/iron-fish/fish-hash). This includes mining software developers, miners and mining pools.
 
+#### Network Transition Concerns
 Another more logistical security concern is that switching over to a new mining algorithm could result in a temporary flux in the network difficulty. 
 If done incorrectly this could result in a temporary halt in the network. Another FIP has been created to address this issue. **[TODO: Add FIP for Difficulty\]**
+
+In addition to the potential network halt, the change in difficulty opens up re-org attack oppourtunities for bad actors. Imagine the following situation:
+
+1. FishHash activates at block 100
+1. 100 FishHash blocks are mined at much lower total difficulty than blake3 blocks
+1. The total difficulty of the longest chain is now 100b + 100f, b being the average
+blake3 difficulty and f being the average FishHash difficulty
+1. A bad actor re-mines a blake3 block 100 at a higher difficulty such that the difficulty
+different between block 100 and block 100' is greater than 100f. This is possible because the FishHash
+average difficulty is much lower than the blake3 average difficulty
+1. The bad actor can create a large re-org with very little hashpower
+
+The plan to mitigate this attack is 2-fold
+1. Implement re-org limits (discussed further in this FIP **TODO: Link FIP**)
+1. Recommend users not send transactions during the transition period as re-orgs are still possible
 
 ## Reference Implementation
 
