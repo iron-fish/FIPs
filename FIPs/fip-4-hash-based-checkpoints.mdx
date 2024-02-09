@@ -1,0 +1,77 @@
+---
+title: FIP-4 Hash Based Checkpoints
+description: Add hash based checkpoints to the consensus layer
+author: Daniel (@danield9tqh), Mat (@mat-if)
+discussion: https://discourse.ironfish.network/t/91
+status: Review
+category: Core
+created: '2024-1-9'
+---
+
+## Abstract
+
+We propose adding a mechanism for hash-based checkpoints. A mapping of seqeuence -> block hash will be added to the consensus layer. If a node adds the designated block at that sequence, it will never switch to a chain not containing that block.
+
+## Motivation
+
+With the upcoming switch to FishHash, the network difficulty will drop dramatically. This opens up some potential re-organization attacks on the chain. Although these attacks would still be expensive to execute, it would be best to further mitigate them by 'locking in' the hardfork. This is where a hash-based checkpoint would come in. After the hardfork, the network would be able to add a hash-based checkpoint to the consensus layer. This would prevent any re-organization attacks that would remove the hardforked block from the chain.
+
+## Specification
+
+We propose adding a new parameter to the consensus layer, `checkpoints`. This would be a mapping of sequence -> block hash. If a node adds the designated block at that sequence, it will never re-organize its chain prior to that block. Other blocks at that sequence that do not match the hash checkpoint can still be gossiped and added to the chain, but they will never be connected to the main chain if the checkpoint has already been met. Below are a few example scenarios to illustrate how this would work:
+
+**Scenario 1 (most likely)**
+
+The node's head is currently at Block M4 (main chain 4). The node sees a block, F5 (fork chain 5), that is heavier than its current head. Normally the node would switch to the fork chain, but since it has passed the checkpoint at M3, it will not switch to the fork chain. The head will stay at M4.
+
+![Scenario 1](/images/fip-4/scenario-1.png)
+
+**Scenario 2**
+
+The node's head is currently at Block F5 which is the heaviest block in the network. The node is not on the chain with the checkpoint. The node *will not* switch to M4, even though there is a checkpoint there. The node will stay on F5. This seems a little counterintuitive, why wouldn't the node switch to a checkpoint if it sees it? This reasoning here is to maintain simplicity and not introduce changes to the chain's forking logic. Conceptually a checkpoint will only be treated as a block that cannot be disconnected if its already connected. In practice this scenario is very unlikely and if the majority of hash power has already passed the checkpoint, this scenario would be impossible. This introduces the one security assumption in this proposal: the majority of hash power must pass the checkpoint.
+
+![Scenario 2](/images/fip-4/scenario-2.png)
+
+**Scenario 3**
+
+This is a continuation of Scenario 2. The node is still at F5, but now it sees a block M6 which is heavier. The node will not switch to M6 and will be permanently locked in to the checkpoint chain.
+
+![Scenario 3](/images/fip-4/scenario-3.png)
+
+## Rationale
+
+A few other options were considered
+
+**Implement a Re-org Limit**
+
+A re-org limit is similar to a checkpoint but is dynamic and is defined as limit on how many blocks can be disconnected from the main chain during a re-org. For example if the re-org limit is 10, a node will not switch to another chain if it has to disconnect 10 or more block from its main chain to do so. Re-org limits can be helpful for a network but are more opinionated than a single checkpoint. Because no more than a single checkpoint is needed to secure the FishHash hard fork that was the preferred solution. Re-org limits will probably be re-visted in the future for other use cases like finality for bridging.
+
+**Prefer FishHash blocks over Blake3 Blocks**
+
+Another way to guard against a re-org attack during the FishHash hardfork would be to treat FishHash blocks as heavier than blake3 blocks. Instead of having just one field for `work` in the block header, we could have two fields, `work_fish` and `work_blake`. The node would then compare `work_fish` first to determined which block is heavier and if they are equivalent it would check `work_blake`. This would be a more invasive change as the `work` field is used in the networking layer to help with P2P syncing. So the networking layer would have to be upgraded. Additionally it incentivizes miners to mine FishHash blocks over blake3 blocks incentivizing faster block times for blake3 blocks. This is not necesarially a bad thing but could open up some unintended/unknown consequences. Overall this seemed like a much more invasive and riskier change.
+
+**Treat Non-Checkpoint Blocks as Invalid **
+
+This is similar to the checkpoint proposal but instead of just not switching to a fork chain, the node would treat any block at the checkpoint sequence that does not match the checkpoint hash as invalid. This would be a more invasive change as it would require a hardfork to implement. Non-upgraded nodes would be banned from the network if they gossiped these invalid blocks (on purpose or on accident). If a large portion of nodes do not upgrade (which is likely given the current upgrade behavior) this would open up an attack causing a large network split. If someone maliciously broadcasted an invalid block at the checkpoint sequence it could cause all un-upgraded nodes to split. This seemed like an unnecessary risk.
+
+**Do Nothing**
+
+This is the simplest option and not a bad option. As discussed in the [Discourse post](https://discourse.ironfish.network/t/91), the re-org attack during the FishHash hardfork is still expensive and unlikely. However, the checkpoint is non-invase (not a hardfork) and adds an extra layer of security against the attack. One consideration was the possibility of blake3 ASICs being developed in the future which would make the re-org attack much cheaper. This is a very speculative consideration but gives some argument for adding a checkpoint.
+
+## Backwards Compatibility 
+
+This change is somewhat backwards compatible with previous versions. Older versions that do not know about checkpoints will still be able to communicate with newer versions. The only scenario that would be different for them would be if the majority of the hash power is on a non-checkpoint chain (Scenario 2 above). In that case older versions would re-org to the forked chain, while newer versions would not. This would cause a network split but as previously mentioned this scenario is very unlikely and can be remedied once the majority of hash power has passed the checkpoint.
+
+The scenario where the majority of the hash power stays on the fork chain would in effect be considered an attack on the network and is not reconcilable by any code changes. The network would have to come to a social consensus to adopt the checkpoint chain. So as long as there is social consensus to accept the checkpoint chain, this change is fully backwards compatible.
+
+## Security and Privacy Considerations
+
+The main security assumption of this proposal is that the majority of hash power must pass the checkpoint. This is a reasonable assumption as the majority of hash power is needed to secure the network in general.
+
+## Reference Implementation
+
+Available in this [Github PR](https://github.com/iron-fish/ironfish/pull/4683). Specific checkpoint is not added here, just the checkpoint logic.
+
+## Copyright
+
+Copyright and related rights waived via [CC0](https://creativecommons.org/share-your-work/public-domain/cc0/).
