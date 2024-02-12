@@ -14,11 +14,11 @@ We propose adding a mechanism for hash-based checkpoints. A mapping of seqeuence
 
 ## Motivation
 
-With the upcoming switch to FishHash, the network difficulty will drop dramatically. This opens up some potential re-organization attacks on the chain. Although these attacks would still be expensive to execute, it would be best to further mitigate them by 'locking in' the hardfork. This is where a hash-based checkpoint would come in. After the hardfork, the network would be able to add a hash-based checkpoint to the consensus layer. This would prevent any re-organization attacks that would remove the hardforked block from the chain.
+With the upcoming switch to FishHash, the network difficulty will drop dramatically. This opens up some potential re-organization attacks on the chain. Although these attacks would still be expensive to execute, it would be best to further mitigate them by 'locking in' the hardfork. Adding a checkpoint to the consensus layer would ensure that node would not re-organize beyond the first hardfork block.
 
 ## Specification
 
-We propose adding a new parameter to the consensus layer, `checkpoints`. This would be a mapping of sequence -> block hash. If a node adds the designated block at that sequence, it will never re-organize its chain prior to that block. Other blocks at that sequence that do not match the hash checkpoint can still be gossiped and added to the chain, but they will never be connected to the main chain if the checkpoint has already been met. Below are a few example scenarios to illustrate how this would work:
+We propose adding a new parameter to the consensus layer, `checkpoints`. This would be a mapping of sequence -> block hash. If a connects the designated block at that sequence to its main chain, it will never re-organize its chain prior to that block. Other blocks at that sequence that do not match the hash checkpoint can still be gossiped and added to the chain, but they will never be connected to the main chain if the checkpoint has already been met. Below are a few example scenarios to illustrate how this would work:
 
 **Scenario 1 (most likely)**
 
@@ -50,7 +50,7 @@ A re-org limit is similar to a checkpoint but is dynamic and is defined as limit
 
 Another way to guard against a re-org attack during the FishHash hardfork would be to treat FishHash blocks as heavier than blake3 blocks. Instead of having just one field for `work` in the block header, we could have two fields, `work_fish` and `work_blake`. The node would then compare `work_fish` first to determined which block is heavier and if they are equivalent it would check `work_blake`. This would be a more invasive change as the `work` field is used in the networking layer to help with P2P syncing. So the networking layer would have to be upgraded. Additionally it incentivizes miners to mine FishHash blocks over blake3 blocks incentivizing faster block times for blake3 blocks. This is not necesarially a bad thing but could open up some unintended/unknown consequences. Overall this seemed like a much more invasive and riskier change.
 
-**Treat Non-Checkpoint Blocks as Invalid **
+**Treat Non-Checkpoint Blocks as Invalid**
 
 This is similar to the checkpoint proposal but instead of just not switching to a fork chain, the node would treat any block at the checkpoint sequence that does not match the checkpoint hash as invalid. This would be a more invasive change as it would require a hardfork to implement. Non-upgraded nodes would be banned from the network if they gossiped these invalid blocks (on purpose or on accident). If a large portion of nodes do not upgrade (which is likely given the current upgrade behavior) this would open up an attack causing a large network split. If someone maliciously broadcasted an invalid block at the checkpoint sequence it could cause all un-upgraded nodes to split. This seemed like an unnecessary risk.
 
