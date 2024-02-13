@@ -1,0 +1,67 @@
+---
+title: FIP-8 Difficulty adjustment
+description: Allowing the block difficulty to adjust faster per-block, and adjust the difficulty for a singular block for the FishHash transition
+author: Mat (@mat-if), Daniel (@danield9tqh)
+discussion: https://discourse.ironfish.network/t/longer-difficulty-adjustment-period
+status: Review
+category: Core
+created: '2024-02-13'
+---
+
+## Abstract
+
+By adjusting the difficulty adjustment algorithm slightly, we can ensure the transition to FishHash is smooth, as well as allowing the network(s) to recover quicker in the event of loss of large amounts of hash rate.
+
+This proposes two small changes: allowing blocks to decrease the difficulty more on a per-block basis, and allows a one-time difficulty adjustment for the first FishHash block.
+
+## Motivation
+
+The Iron Fish difficulty adjustment as it currently exists will lead to a difficult transition for the FishHash hard fork activation. Due to the FishHash algorithm being much slower than the previous algorithm, the network will see very high block times for potentially up to a week.
+
+Further, the network is somewhat susceptible to interruption if a large portion of the hash rate drops off the network for any particular reason. While this is not a large problem for mainnet, it does affect testnet somewhat regularly and is an annoying problem to deal with.
+
+With some minor adjustments, we can fix two issues:
+1. We can ensure the transition to FishHash is as smooth as possible, leading to minimal disruption in block times allowing people to send transactions again with confidence.
+2. We can ensure that the network(s) recover quickly in the event of a loss of large amounts of hash rate, instead of potentially being stalled for large amounts of time.
+
+## Specification
+
+This change will be done in two ways:
+1. Allow the difficulty calculation formula to use a maximum time bucket of 200, up from 99.
+2. Allow a one-time difficulty adjustment by dividing the difficulty by 100 for the block whose sequence is the activation height for the FishHash algorithm.
+
+The first change is achieved by introducing a consensus paramter `enableIncreasedDifficultyChange`, which is a sequence at which to begin using a maximum bucket number of 200 instead of 99.
+
+The second change is achieved by checking the block's sequence, which is a new addition to the target/difficulty calculation. If that block's sequence is equal to the block sequence given by the consensus parameter `enableFishHash`, the formula divides the difficulty by 100.
+
+## Rationale
+
+The difficulty adjustment algorithm works by creating 10-second "buckets" of time, which is how much time has passed since the last block. The difficulty of a block rises if the time is < 55 seconds, stays the same if the time is between 55 and 65 seconds, then continually goes down to around 1055 seconds (~17.5 minutes), which is the maximum bucket of 99. This allows a maxmimum downward adjustment per block of around 4.83%.
+
+If we modify the maxmimum bucket limit to 200 from 99, the maximum downward adjustment becomes about 9.77%, reaching this limit after around 33 minutes.
+
+This means if the network is stalled, block times will normalize about twice as fast. This change on its own would allow the FishHash activation transition to normalize to acceptable blocktimes from around 4 days to around 2 days.
+
+Further, by allowing a one-time difficulty adjustment for the first FishHash block by dividing the difficulty by 100, we allow the network to stay within acceptable block times, which is measuring in minutes instead of hours. Testing has shown that FishHash is between 250-500 times slower than the current Blake3 algorithm.
+
+Without this change, the first FishHash blocks would have an estimated block time of 3+ hours. With this change, that changes to around 2.5-5 minutes.
+
+If we assume the hash rate is 1,000,000 hashes per second for Blake3, prior to activation, and the block time is stabilized around 60 seconds, that would mean the difficulty is around 60,000,000. Based on our testing, the equivalent FishHash hash rate will be 2,000-4,000 hashes per second. This means that the expected block time is between 250-500 minutes.
+
+If, instead, we divide that by 100 for the first FishHash block, we can expect the first FishHash block to have a difficulty of 600,000. This would lead to an expected block time of around 2.5-5 minutes.
+
+We are erring on the side of caution by not simply dividing by 250 or more, because block time adjusts downward faster than it adjusts upward. It is also expected that miners will find more optimal overclock settings to increase the hash rate further.
+
+## Backwards Compatibility
+
+This is a breaking change requiring a hard-fork, since the difficulty calculation is part of a block's verification. Nodes without this logic would disagree that these blocks are valid, leading to a network split.
+
+## Security and Privacy Considerations
+
+By allowing the difficulty to drop more per block, it does increase the downward pressure on difficulty slightly. On mainnet, this is not a large problem, as less than 0.02% of blocks would be affected by this change. As such, this change should not have any measurable difference in block times or difficulty on mainnet beyond the FishHash transition period.
+
+## Reference Implementation
+
+https://github.com/iron-fish/ironfish/pull/4660 - The change for allowing 200 buckets instead of 99 based on a consensus parameter
+
+https://github.com/iron-fish/ironfish/pull/4715 - The change for dividing the difficulty by 100 if the sequence matches the sequence for the consensus paramter `enableFishHash`
