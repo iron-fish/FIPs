@@ -1,0 +1,67 @@
+---
+title: FIP-9 Swap Randomness and Graffiti Header Positions
+description: Swap the positions of the randomness and graffiti in the serialized block header when mining
+author: Daniel (@danield9tqh), Mat (@mat-if)
+discussion: https://discourse.ironfish.network/t/93
+status: Review
+category: Core
+created: '2024-02-13'
+---
+
+## Abstract
+
+Randomness is currently the first 8 of the block header when serialized for mining. Graffiti is the last 32 bytes. This FIP proposes to swap the positions so that the graffiti is the first 32 bytes and the randomness is the last 8 bytes.
+
+## Motivation
+
+Currently most mining software uses the graffiti field as a nonce when mining Iron Fish blocks. The block header is serialized as follows before being passed to the blake3 hashing algorithm.
+```
+Field                   Bytes
+------------------------------
+randomness                8
+sequence                  4
+previousBlockHash        32
+noteCommitment           32
+transactionCommitment    32
+target                   32
+timestamp                 8
+graffiti                 32
+```
+
+We can see the `randomness` field (the intended nonce) is at the beginning of the serialized bytes while `graffiti` is at the end. Because blake3 hashes data in chunks it is prone to 'mid-state' optimization. If the beginning portions of the data are kept constant while the end of the data changes, the intermediate result of hashing the beginning can be re-used for multiple hashes. Because `randomness` is in the initial bytes and `graffiti` is in the final bytes it is optimal to keep the `randomness` constant while changing the `graffiti` over and over again to mine. This leads the `graffiti` fields being unrecognizable in their ASCI form and essentially random bytes which was not the original intent of the field. Sha-3 in Bitcoin is succeptible to this as well as described further in this [post](https://crypto.stackexchange.com/questions/1862/how-can-i-calculate-the-sha-256-midstate). 
+
+## Specification
+
+With the switch to the FishHash algorithm for mining the order in which these two fields appear can also easily be changed. Moving the `graffiti` to the front and `randomness` to the end will allow using `randomness` as the nonce to be more optimal than `graffiti` and the `graffiti` can be used for its intended purpose. The new serialization before passing to the FishHash function would be
+```
+Field                   Bytes
+------------------------------
+graffiti                 32
+sequence                  4
+previousBlockHash        32
+noteCommitment           32
+transactionCommitment    32
+target                   32
+timestamp                 8
+randomness                8
+```
+
+## Rationale
+
+The graffiti field is helpful for identifying which pools mined which blocks. This is mostly relevant on the block explorer. It is possible to attain this information from off-chain sources as well but is slightly more difficult. Removing the mid-state optimization should also make mining software simpler. Given the non-invaseness of the change when combining it with the switch to FishHash it seems like a no-brainer to switch the two fields.
+
+## Backwards Compatibility 
+
+This change will not be backwards compatible and will require a hard fork. It can be the same hardfork as the FishHash algorithm change.
+
+## Security and Privacy Considerations
+
+The serialization strategy that is changing is only used for mining. With this in mind we can view the serialization of the block header as essentially part of the mining algorthm. If we are already changing the mining algorithm to FishHash then changing the serialization strategy should not introduce any additional security concerns.
+
+## Reference Implementation
+
+The two serialization functions can be seen [here](https://github.com/iron-fish/ironfish/blob/42deb527807572be392c5a2290fb276b482f9389/ironfish/src/blockHasher.ts#L26)
+
+## Copyright
+
+Copyright and related rights waived via [CC0](https://creativecommons.org/share-your-work/public-domain/cc0/).
