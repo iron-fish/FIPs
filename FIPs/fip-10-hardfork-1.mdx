@@ -1,0 +1,48 @@
+---
+title: FIP-10 Hardfork 1 (FishHash)
+description: Hardfork including the switch from Blake3 to FishHash as well as accompanying changes.
+author: Daniel (@danield9tqh), Mat (@mat-if)
+discussion: https://discourse.ironfish.network/t/88
+status: Review
+category: Hardfork
+created: '2024-1-14'
+requires: FIP-2, FIP-3, FIP-8, FIP-9
+---
+
+## Abstract
+This FIP specifies the dates and changes for the first Iron Fish Hardfork. The hardfork will include
+- Switching the mining algorithm to FishHash from Blake3 (FIP-3)
+- Swap positions of randomenss and graffiti fields in header serialization (FIP-9)
+- Enforce that a blocks timestamp is strictly greater than the previous block (FIP-2)
+- Add mechanism for faster difficulty adjustment per block as well as a one time difficulty adjustment to account for the change in mining algorithm (FIP-8)
+
+## Motivation
+
+This hardfork is neccesary to implement the changes in the referenced FIPs. For motivation on the individual changes, refer to the individual FIPs.
+
+## Specification
+- Activation:
+    - Block >= 419_193 on the Iron Fish [Testnet](https://testnet.explorer.ironfish.network/), estimated Februray 28 2024 17:00 GMT
+    - Block >= 503_338 on the Iron Fish [Mainnet](https://explorer.ironfish.network/), estimated April 2 2024 13:00 GMT
+
+- Included FIPs:
+    - [FIP-2](/fips/fip-2-enforce-sequential-block-time) Enforce Sequential Block Time
+    - [FIP-3](/fips/fip-3-memory-hard-mining-algorithm) FishHash Memory Hard Mining Algorithm
+    - [FIP-8](/fips/fip-8-difficulty-adjustment) Difficulty Adjustment
+    - [FIP-9](/fips/fip-9-swap-randomness-and-graffiti) Swap Randomness and Graffiti Header Positions
+
+## Backwards Compatibility 
+
+This hardfork will not be backwards compatible. All nodes and miners will need to upgrade to the hardfork version of Iron Fish.
+
+## Security and Privacy Considerations
+
+Read more in deatil in the individual FIPs.
+
+## Reference Implementation
+
+[**TODO**] Will be added once the implementation is complete.
+
+## Copyright
+
+Copyright and related rights waived via [CC0](https://creativecommons.org/share-your-work/public-domain/cc0/).
