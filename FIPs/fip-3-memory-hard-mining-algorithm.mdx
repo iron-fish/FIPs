@@ -102,7 +102,7 @@ ProgPoW being optimized for GPUs is designed to use the entire GPU core. This me
 
 ## Backwards Compatibility 
 
-Changing the hashing algorithm of Iron Fish will result in a hardfork of the chain and thus will not be backwards compatible with previous versions of the node. Individual account balances will not be affected by the change. **[TODO: Add FIP for Hardfork\]**
+Changing the hashing algorithm of Iron Fish will result in a hardfork of the chain and thus will not be backwards compatible with previous versions of the node. Individual account balances will not be affected by the change. The hardfork is addressed in [FIP-10](/fips/fip-10-hardfork-1).
 
 ## Security and Privacy Considerations
 #### Cryptographic Security Concerns
@@ -115,7 +115,7 @@ The main security concerns that were considered in this proposal are
 Both of these concerns are partially mitigated by the fact that FishHash shares many similarities with Ethash. The memory cache expansion piece for example is identical. Ethash was used on Ethereum mainnet for many years and so has a certain confirmed level of security through usage. Additionally Iron Fish has commissioned an official audit of the cryptographic security of the new algorithm **[TODO: Add Audit\]**. Supplementing this official audit many community members with a vested stake in the network have reviewed the FishHash code which is [open source](https://github.com/iron-fish/fish-hash). This includes mining software developers, miners and mining pools.
 
 #### Network Transition Concerns
-Another more logistical security concern is that switching over to a new mining algorithm could result in a temporary flux in the network difficulty. If done incorrectly this could result in a temporary halt in the network. Another FIP has been created to address this issue. **[TODO: Add FIP for Difficulty\]**
+Another more logistical security concern is that switching over to a new mining algorithm could result in a temporary flux in the network difficulty. If done incorrectly this could result in a temporary halt in the network. [FIP-8](/fips/fip-8-difficulty-adjustment) addresses this issue.
 
 In addition to the potential network halt, the change in difficulty opens up re-org attack oppourtunities for bad actors. Imagine the following situation:
 
